@@ -6,14 +6,10 @@ from fastapi import (
     Form,
 )
 
-from fastapi.responses import FileResponse
-
 from app.models.chat import ChatRequest
 from app.services.llm_service import generate_response
 from app.services.stt_service import transcribe_audio
 from app.services.tts_service import text_to_speech
-
-import os
 
 
 router = APIRouter(
@@ -22,51 +18,38 @@ router = APIRouter(
 )
 
 
-# ---------------------------------------
-# Text Chat
-# ---------------------------------------
-
 @router.post("/")
 async def chat(request: ChatRequest):
-
     try:
-
         response = await generate_response(
             patient_id=request.patient_id,
             message=request.message,
         )
 
         return {
-            "response": response,
+            "response": response
         }
 
     except Exception as e:
-
         print("❌ Chat error:", e)
-
         raise HTTPException(
             status_code=500,
-            detail=str(e),
+            detail=str(e)
         )
 
 
-# ---------------------------------------
-# Voice Chat
-# ---------------------------------------
 @router.post("/voice")
 async def voice_chat(
     patient_id: str = Form(...),
     file: UploadFile = File(...),
 ):
-
     try:
-
-        # 🎤 Speech → Text
+        # 1. Speech → Text
         transcript = await transcribe_audio(file)
 
         print("🎤 Transcript:", transcript)
 
-        # 🧠 Text → AI Response
+        # 2. Text → AI Response
         response = await generate_response(
             patient_id=patient_id,
             message=transcript,
@@ -74,7 +57,7 @@ async def voice_chat(
 
         print("🤖 AI Response:", response)
 
-        # 🔊 AI Response → Speech
+        # 3. AI Response → Speech
         audio_base64 = await text_to_speech(response)
 
         print("🔊 TTS generated successfully")
@@ -87,62 +70,9 @@ async def voice_chat(
         }
 
     except Exception as e:
-
         print("❌ Voice error:", e)
 
         raise HTTPException(
             status_code=500,
-            detail=str(e),
-        )
-
-# ---------------------------------------
-# Voice Audio
-# ---------------------------------------
-
-@router.post("/voice/audio")
-async def voice_chat_audio(
-    patient_id: str = Form(...),
-    file: UploadFile = File(...),
-):
-
-    audio_path = None
-
-    try:
-
-        # 1. STT
-        transcript = await transcribe_audio(file)
-
-        print("🎤 Transcript:", transcript)
-
-        # 2. LLM
-        response = await generate_response(
-            patient_id=patient_id,
-            message=transcript,
-        )
-
-        print("🤖 AI Response:", response)
-
-        # 3. TTS
-        audio_path = await text_to_speech(response)
-
-        print("🔊 TTS generated successfully")
-        print("🎵 Audio file:", audio_path)
-
-        # 4. Return MP3
-        return FileResponse(
-            path=audio_path,
-            media_type="audio/mpeg",
-            filename="medireach_response.mp3",
-        )
-
-    except Exception as e:
-
-        print("❌ Voice audio error:", e)
-
-        if audio_path and os.path.exists(audio_path):
-            os.remove(audio_path)
-
-        raise HTTPException(
-            status_code=500,
-            detail=str(e),
+            detail=str(e)
         )
