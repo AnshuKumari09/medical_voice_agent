@@ -1,27 +1,27 @@
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
-
-import webbrowser
-import threading
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.chat import router as chat_router
 
 
 app = FastAPI(
-    title="MediReach Medical AI Agent",
-    version="1.0.0"
+    title="MediReach Voice Assistant"
 )
 
 
-# Serve frontend
-app.mount(
-    "/frontend",
-    StaticFiles(directory="frontend"),
-    name="frontend"
+app.add_middleware(
+    CORSMiddleware,
+
+    allow_origins=["*"],
+
+    allow_credentials=False,
+
+    allow_methods=["*"],
+
+    allow_headers=["*"],
 )
 
 
-# API routes
 app.include_router(chat_router)
 
 
