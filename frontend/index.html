@@ -1,0 +1,414 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>MediReach Voice Assistant</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        #conversation {
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 20px;
+            min-height: 300px;
+            margin-bottom: 20px;
+        }
+
+        .user {
+            margin-bottom: 20px;
+        }
+
+        .ai {
+            margin-bottom: 20px;
+        }
+
+        .label {
+            font-weight: bold;
+        }
+
+        button {
+            padding: 12px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        #startBtn {
+            background: #222;
+            color: white;
+        }
+
+        #stopBtn {
+            background: #ddd;
+        }
+
+        #endBtn {
+            background: #d33;
+            color: white;
+        }
+
+        #status {
+            text-align: center;
+            margin: 15px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>🎤 MediReach Voice Assistant</h1>
+
+    <div id="status">
+        Click "Start Conversation"
+    </div>
+
+    <div id="conversation"></div>
+
+    <div style="text-align:center;">
+        <button id="startBtn">
+            🎤 Start Conversation
+        </button>
+
+        <button id="stopBtn" disabled>
+            ⏹ Stop Speaking
+        </button>
+
+        <button id="endBtn" disabled>
+            🛑 End Conversation
+        </button>
+    </div>
+
+
+<script>
+
+let mediaRecorder;
+let audioChunks = [];
+
+let stream = null;
+
+let conversationActive = false;
+let recording = false;
+
+
+// --------------------------------------
+// START CONVERSATION
+// --------------------------------------
+
+document.getElementById("startBtn").onclick = async () => {
+
+    try {
+
+        stream = await navigator.mediaDevices.getUserMedia({
+            audio: true
+        });
+
+        conversationActive = true;
+
+        document.getElementById("startBtn").disabled = true;
+        document.getElementById("stopBtn").disabled = false;
+        document.getElementById("endBtn").disabled = false;
+
+        setStatus("🎤 Listening...");
+
+        startRecording();
+
+    } catch (error) {
+
+        console.error(error);
+
+        setStatus(
+            "Microphone permission denied."
+        );
+    }
+};
+
+
+// --------------------------------------
+// RECORD USER SPEECH
+// --------------------------------------
+
+function startRecording() {
+
+    if (!conversationActive) {
+        return;
+    }
+
+    audioChunks = [];
+
+    mediaRecorder = new MediaRecorder(stream);
+
+    mediaRecorder.ondataavailable = event => {
+
+        if (event.data.size > 0) {
+            audioChunks.push(event.data);
+        }
+
+    };
+
+
+    mediaRecorder.onstop = async () => {
+
+        recording = false;
+
+        setStatus("⏳ Processing your speech...");
+
+        const audioBlob = new Blob(
+            audioChunks,
+            {
+                type: mediaRecorder.mimeType
+            }
+        );
+
+        await sendAudio(audioBlob);
+
+    };
+
+
+    mediaRecorder.start();
+
+    recording = true;
+
+}
+
+
+// --------------------------------------
+// STOP USER SPEECH
+// --------------------------------------
+
+document.getElementById("stopBtn").onclick = () => {
+
+    if (
+        mediaRecorder &&
+        mediaRecorder.state === "recording"
+    ) {
+
+        mediaRecorder.stop();
+
+    }
+
+};
+
+
+// --------------------------------------
+// SEND AUDIO TO BACKEND
+// --------------------------------------
+
+async function sendAudio(audioBlob) {
+
+    try {
+
+        const formData = new FormData();
+
+        formData.append(
+            "patient_id",
+            "local-test-user"
+        );
+
+        formData.append(
+            "file",
+            audioBlob,
+            "speech.webm"
+        );
+
+
+        const response = await fetch(
+            "http://127.0.0.1:8000/api/chat/voice",
+            {
+                method: "POST",
+                body: formData
+            }
+        );
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                `HTTP error: ${response.status}`
+            );
+
+        }
+
+
+        const data = await response.json();
+
+
+        // --------------------------------
+        // SHOW TRANSCRIPT
+        // --------------------------------
+
+        addMessage(
+            "You",
+            data.transcript,
+            "user"
+        );
+
+
+        // --------------------------------
+        // SHOW AI RESPONSE
+        // --------------------------------
+
+        addMessage(
+            "MediReach",
+            data.response,
+            "ai"
+        );
+
+
+        /*
+            Backend pyttsx3 is already speaking
+            the response.
+
+            After backend finishes speaking,
+            the request returns here.
+        */
+
+        if (conversationActive) {
+
+            setStatus("🎤 Your turn...");
+
+            startRecording();
+
+        }
+
+
+    } catch (error) {
+
+        console.error(error);
+
+        setStatus(
+            "❌ Error processing audio."
+        );
+
+    }
+
+}
+
+
+// --------------------------------------
+// ADD MESSAGE TO UI
+// --------------------------------------
+
+function addMessage(
+    sender,
+    message,
+    className
+) {
+
+    const conversation =
+        document.getElementById(
+            "conversation"
+        );
+
+
+    const messageElement =
+        document.createElement("div");
+
+
+    messageElement.className =
+        className;
+
+
+    messageElement.innerHTML = `
+        <div class="label">
+            ${sender}
+        </div>
+
+        <div>
+            ${message}
+        </div>
+    `;
+
+
+    conversation.appendChild(
+        messageElement
+    );
+
+
+    conversation.scrollTop =
+        conversation.scrollHeight;
+
+}
+
+
+// --------------------------------------
+// END CONVERSATION
+// --------------------------------------
+
+document.getElementById("endBtn").onclick = () => {
+
+    conversationActive = false;
+
+
+    if (
+        mediaRecorder &&
+        mediaRecorder.state === "recording"
+    ) {
+
+        mediaRecorder.stop();
+
+    }
+
+
+    if (stream) {
+
+        stream.getTracks().forEach(
+            track => track.stop()
+        );
+
+    }
+
+
+    document.getElementById(
+        "startBtn"
+    ).disabled = false;
+
+
+    document.getElementById(
+        "stopBtn"
+    ).disabled = true;
+
+
+    document.getElementById(
+        "endBtn"
+    ).disabled = true;
+
+
+    setStatus(
+        "🛑 Conversation ended."
+    );
+
+};
+
+
+// --------------------------------------
+// STATUS
+// --------------------------------------
+
+function setStatus(message) {
+
+    document.getElementById(
+        "status"
+    ).innerText = message;
+
+}
+
+</script>
+
+</body>
+</html>
+
