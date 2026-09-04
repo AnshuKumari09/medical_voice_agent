@@ -1,28 +1,16 @@
-import os
+import edge_tts
 
 
-TTS_ENABLED = os.getenv("TTS_ENABLED", "true").lower() == "true"
+async def text_to_speech(text: str) -> bytes:
+    communicate = edge_tts.Communicate(
+        text,
+        voice="en-US-JennyNeural"
+    )
 
+    audio_chunks = []
 
-def speak_text(text: str):
-    if not TTS_ENABLED:
-        return
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            audio_chunks.append(chunk["data"])
 
-    import pythoncom
-    import pyttsx3
-
-    pythoncom.CoInitialize()
-
-    try:
-        engine = pyttsx3.init()
-
-        engine.setProperty("rate", 165)
-        engine.setProperty("volume", 1.0)
-
-        engine.say(text)
-        engine.runAndWait()
-
-        engine.stop()
-
-    finally:
-        pythoncom.CoUninitialize()
+    return b"".join(audio_chunks)
