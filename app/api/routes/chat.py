@@ -53,7 +53,6 @@ async def chat(request: ChatRequest):
 # ---------------------------------------
 # Voice Chat
 # ---------------------------------------
-
 @router.post("/voice")
 async def voice_chat(
     patient_id: str = Form(...),
@@ -62,12 +61,12 @@ async def voice_chat(
 
     try:
 
-        # STT
+        # 🎤 Speech → Text
         transcript = await transcribe_audio(file)
 
         print("🎤 Transcript:", transcript)
 
-        # LLM
+        # 🧠 Text → AI Response
         response = await generate_response(
             patient_id=patient_id,
             message=transcript,
@@ -75,16 +74,16 @@ async def voice_chat(
 
         print("🤖 AI Response:", response)
 
-        # TTS
-        audio_path = await text_to_speech(response)
+        # 🔊 AI Response → Speech
+        audio_base64 = await text_to_speech(response)
 
         print("🔊 TTS generated successfully")
 
-        # Return JSON
         return {
             "transcript": transcript,
             "response": response,
-            "audio_file": audio_path,
+            "audio": audio_base64,
+            "audio_type": "audio/mpeg",
         }
 
     except Exception as e:
@@ -95,7 +94,6 @@ async def voice_chat(
             status_code=500,
             detail=str(e),
         )
-
 
 # ---------------------------------------
 # Voice Audio
