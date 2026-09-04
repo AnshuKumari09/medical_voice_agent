@@ -94,3 +94,56 @@ async def voice_chat(
             status_code=500,
             detail=str(e),
         )
+
+
+from fastapi.responses import Response
+
+# ---------------------------------------
+# Voice Chat - Audio Response
+# ---------------------------------------
+
+@router.post("/voice/audio")
+async def voice_chat_audio(
+    patient_id: str = Form(...),
+    file: UploadFile = File(...),
+):
+
+    try:
+
+        # 1. Speech → Text
+        transcript = await transcribe_audio(file)
+
+        print("🎤 Transcript:", transcript)
+
+        # 2. Text → LLM
+        response = await generate_response(
+            patient_id=patient_id,
+            message=transcript,
+        )
+
+        print("🤖 AI Response:", response)
+
+        # 3. LLM → Speech
+        audio_base64 = await text_to_speech(response)
+
+        # 4. Base64 → MP3 bytes
+        import base64
+
+        audio_bytes = base64.b64decode(audio_base64)
+
+        print("🔊 TTS generated successfully")
+
+        # 5. Return actual MP3
+        return Response(
+            content=audio_bytes,
+            media_type="audio/mpeg",
+        )
+
+    except Exception as e:
+
+        print("❌ Voice audio error:", e)
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e),
+        )
