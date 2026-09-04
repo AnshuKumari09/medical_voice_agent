@@ -130,16 +130,11 @@ async def voice_chat_audio(
         print("🔊 TTS generated successfully")
         print("🎵 Audio file:", audio_path)
 
-        # 4. Return actual MP3
+        # 4. Return MP3
         return FileResponse(
             path=audio_path,
             media_type="audio/mpeg",
             filename="medireach_response.mp3",
-            headers={
-                "Content-Disposition": "inline; filename=medireach_response.mp3",
-                "X-Transcript": transcript.replace("\n", " ").strip(),
-                "X-Response": response.replace("\n", " ").strip(),
-            },
         )
 
     except Exception as e:
