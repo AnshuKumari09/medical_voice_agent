@@ -1,8 +1,6 @@
-import base64
+import edge_tts
 import tempfile
 import os
-
-import edge_tts
 
 
 async def text_to_speech(text: str) -> str:
@@ -12,27 +10,21 @@ async def text_to_speech(text: str) -> str:
         voice="en-US-JennyNeural",
     )
 
-    with tempfile.NamedTemporaryFile(
+    temp_file = tempfile.NamedTemporaryFile(
         suffix=".mp3",
         delete=False
-    ) as temp_file:
+    )
 
-        temp_path = temp_file.name
+    temp_path = temp_file.name
+    temp_file.close()
 
     try:
-
         await communicate.save(temp_path)
 
-        with open(temp_path, "rb") as audio_file:
-            audio_bytes = audio_file.read()
+        return temp_path
 
-        audio_base64 = base64.b64encode(
-            audio_bytes
-        ).decode("utf-8")
-
-        return audio_base64
-
-    finally:
-
+    except Exception:
         if os.path.exists(temp_path):
             os.remove(temp_path)
+
+        raise
