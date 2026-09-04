@@ -54,19 +54,14 @@ async def voice_chat(
     file: UploadFile = File(...),
 ):
     try:
-        # ---------------------------------------
-        # 1. Speech → Text
-        # ---------------------------------------
 
+        # 1. Speech → Text
         transcript = await transcribe_audio(file)
 
         print("🎤 Transcript:", transcript)
 
 
-        # ---------------------------------------
         # 2. Text → AI Response
-        # ---------------------------------------
-
         response = await generate_response(
             patient_id=patient_id,
             message=transcript,
@@ -75,30 +70,24 @@ async def voice_chat(
         print("🤖 AI Response:", response)
 
 
-        # ---------------------------------------
         # 3. AI Response → Speech
-        # ---------------------------------------
-
         audio = await text_to_speech(response)
 
         print("🔊 TTS generated successfully")
 
 
-        # ---------------------------------------
         # 4. Return Audio
-        # ---------------------------------------
-
         return Response(
             content=audio,
             media_type="audio/mpeg",
             headers={
-                "X-Transcript": transcript,
-                "X-Response": response,
+                "X-Transcript": transcript.replace("\n", " ").strip(),
+                "X-Response": response.replace("\n", " ").strip(),
             },
         )
 
-
     except Exception as e:
+
         print("❌ Voice error:", e)
 
         raise HTTPException(
