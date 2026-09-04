@@ -5,7 +5,6 @@ from fastapi import (
     File,
     Form,
 )
-from fastapi.responses import Response
 
 from app.models.chat import ChatRequest
 from app.services.llm_service import generate_response
@@ -25,7 +24,9 @@ router = APIRouter(
 
 @router.post("/")
 async def chat(request: ChatRequest):
+
     try:
+
         response = await generate_response(
             patient_id=request.patient_id,
             message=request.message,
@@ -36,6 +37,7 @@ async def chat(request: ChatRequest):
         }
 
     except Exception as e:
+
         print("❌ Chat error:", e)
 
         raise HTTPException(
@@ -53,6 +55,7 @@ async def voice_chat(
     patient_id: str = Form(...),
     file: UploadFile = File(...),
 ):
+
     try:
 
         # 1. Speech → Text
@@ -61,7 +64,7 @@ async def voice_chat(
         print("🎤 Transcript:", transcript)
 
 
-        # 2. Text → AI Response
+        # 2. Text → LLM
         response = await generate_response(
             patient_id=patient_id,
             message=transcript,
@@ -70,21 +73,18 @@ async def voice_chat(
         print("🤖 AI Response:", response)
 
 
-        # 3. AI Response → Speech
-        audio = await text_to_speech(response)
+        # 3. LLM Response → Speech
+        audio_base64 = await text_to_speech(response)
 
         print("🔊 TTS generated successfully")
 
 
-        # 4. Return Audio
-        return Response(
-            content=audio,
-            media_type="audio/mpeg",
-            headers={
-                "X-Transcript": transcript.replace("\n", " ").strip(),
-                "X-Response": response.replace("\n", " ").strip(),
-            },
-        )
+        # 4. Return JSON
+        return {
+            "transcript": transcript,
+            "response": response,
+            "audio": audio_base64,
+        }
 
     except Exception as e:
 
