@@ -6,10 +6,14 @@ from fastapi import (
     Form,
 )
 
+from fastapi.responses import FileResponse
+
 from app.models.chat import ChatRequest
 from app.services.llm_service import generate_response
 from app.services.stt_service import transcribe_audio
 from app.services.tts_service import text_to_speech
+
+import os
 
 
 router = APIRouter(
@@ -58,13 +62,12 @@ async def voice_chat(
 
     try:
 
-        # 1. Speech → Text
+        # STT
         transcript = await transcribe_audio(file)
 
         print("🎤 Transcript:", transcript)
 
-
-        # 2. Text → LLM
+        # LLM
         response = await generate_response(
             patient_id=patient_id,
             message=transcript,
@@ -72,18 +75,16 @@ async def voice_chat(
 
         print("🤖 AI Response:", response)
 
-
-        # 3. LLM Response → Speech
-        audio_base64 = await text_to_speech(response)
+        # TTS
+        audio_path = await text_to_speech(response)
 
         print("🔊 TTS generated successfully")
 
-
-        # 4. Return JSON
+        # Return JSON
         return {
             "transcript": transcript,
             "response": response,
-            "audio": audio_base64,
+            "audio_file": audio_path,
         }
 
     except Exception as e:
@@ -96,10 +97,8 @@ async def voice_chat(
         )
 
 
-from fastapi.responses import Response
-
 # ---------------------------------------
-# Voice Chat - Audio Response
+# Voice Audio
 # ---------------------------------------
 
 @router.post("/voice/audio")
@@ -108,14 +107,16 @@ async def voice_chat_audio(
     file: UploadFile = File(...),
 ):
 
+    audio_path = None
+
     try:
 
-        # 1. Speech → Text
+        # 1. STT
         transcript = await transcribe_audio(file)
 
         print("🎤 Transcript:", transcript)
 
-        # 2. Text → LLM
+        # 2. LLM
         response = await generate_response(
             patient_id=patient_id,
             message=transcript,
@@ -123,25 +124,30 @@ async def voice_chat_audio(
 
         print("🤖 AI Response:", response)
 
-        # 3. LLM → Speech
-        audio_base64 = await text_to_speech(response)
-
-        # 4. Base64 → MP3 bytes
-        import base64
-
-        audio_bytes = base64.b64decode(audio_base64)
+        # 3. TTS
+        audio_path = await text_to_speech(response)
 
         print("🔊 TTS generated successfully")
+        print("🎵 Audio file:", audio_path)
 
-        # 5. Return actual MP3
-        return Response(
-            content=audio_bytes,
+        # 4. Return actual MP3
+        return FileResponse(
+            path=audio_path,
             media_type="audio/mpeg",
+            filename="medireach_response.mp3",
+            headers={
+                "Content-Disposition": "inline; filename=medireach_response.mp3",
+                "X-Transcript": transcript.replace("\n", " ").strip(),
+                "X-Response": response.replace("\n", " ").strip(),
+            },
         )
 
     except Exception as e:
 
         print("❌ Voice audio error:", e)
+
+        if audio_path and os.path.exists(audio_path):
+            os.remove(audio_path)
 
         raise HTTPException(
             status_code=500,
