@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
+import threading
+import webbrowser
 from app.api.routes.chat import router as chat_router
 
 
