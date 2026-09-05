@@ -2,6 +2,10 @@ from groq import AsyncGroq
 
 from app.core.config import GROQ_API_KEY
 from app.services.pinecone_service import search_medical_knowledge
+from app.services.memory_service import (
+    get_conversation_history,
+    save_message,
+)
 
 
 client = AsyncGroq(
@@ -12,6 +16,7 @@ MODEL = "qwen/qwen3.6-27b"
 
 
 def is_medical_question(message: str) -> bool:
+
     medical_keywords = [
         "symptom",
         "pain",
@@ -57,14 +62,27 @@ def is_medical_question(message: str) -> bool:
 
 async def generate_response(
     patient_id: str,
-    message: str
+    session_id: str,
+    message: str,
 ) -> str:
 
-    context = ""
+    # =======================================
+    # Conversation Memory
+    # =======================================
 
-    # ---------------------------------------
+    history = get_conversation_history(
+        patient_id=patient_id,
+        session_id=session_id,
+        limit=30,
+    )
+
+    print("Conversation history:", history)
+
+    # =======================================
     # Medical Knowledge Retrieval
-    # ---------------------------------------
+    # =======================================
+
+    context = ""
 
     if is_medical_question(message):
 
@@ -79,9 +97,9 @@ async def generate_response(
             if result.get("text")
         )
 
-    # ---------------------------------------
+    # =======================================
     # System Prompt
-    # ---------------------------------------
+    # =======================================
 
     system_prompt = """
 You are MediReach, a friendly medical AI voice assistant.
@@ -98,6 +116,8 @@ IMPORTANT RULES:
 - Keep responses short and conversational.
 - Usually respond in 1-3 sentences.
 - Ask only 1-2 relevant questions when more information is needed.
+- Use previous conversation messages as memory for this patient, including messages from earlier sessions.
+- If the patient asks about information they already gave you, answer from the conversation memory instead of starting over.
 - Do not give a definitive diagnosis.
 - Do not claim certainty about a medical condition.
 - Provide general health information.
@@ -128,46 +148,82 @@ Use the provided medical knowledge when it is relevant to the patient's question
         )
     )
 
-    # ---------------------------------------
+    # =======================================
+    # Build Messages
+    # =======================================
+
+    messages = [
+        {
+            "role": "system",
+            "content": prompt,
+        }
+    ]
+
+    # Previous conversation
+    messages.extend(history)
+
+    # Current user message
+    messages.append(
+        {
+            "role": "user",
+            "content": message,
+        }
+    )
+
+    # =======================================
     # LLM
-    # ---------------------------------------
+    # =======================================
 
     completion = await client.chat.completions.create(
         model=MODEL,
-        messages=[
-            {
-                "role": "system",
-                "content": prompt,
-            },
-            {
-                "role": "user",
-                "content": message,
-            },
-        ],
+        messages=messages,
         temperature=0.5,
         max_tokens=150,
         reasoning_effort="none",
     )
 
-    # ---------------------------------------
+    # =======================================
     # Extract Response
-    # ---------------------------------------
+    # =======================================
 
     response = completion.choices[0].message.content.strip()
 
-    # Safety cleanup in case model returns
-    # thinking tags despite instructions.
+    # =======================================
+    # Safety cleanup
+    # =======================================
 
     if "<think>" in response:
+
         response = response.split(
             "<think>",
             1
         )[0].strip()
 
     if "</think>" in response:
+
         response = response.split(
             "</think>",
             1
         )[-1].strip()
+
+    # =======================================
+    # Save Conversation
+    # =======================================
+
+    save_message(
+        patient_id=patient_id,
+        session_id=session_id,
+        role="user",
+        content=message,
+    )
+
+    save_message(
+        patient_id=patient_id,
+        session_id=session_id,
+        role="assistant",
+        content=response,
+    )
+
+    print("Conversation saved to Supabase")
 
     return response

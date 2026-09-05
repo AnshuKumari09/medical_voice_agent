@@ -12,11 +12,9 @@
     <title>MediReach Voice Assistant</title>
 
     <style>
-
         * {
             box-sizing: border-box;
         }
-
         body {
             margin: 0;
             min-height: 100vh;
@@ -266,8 +264,14 @@
     // BACKEND
     // ============================================
 
+    const API_BASE_URL =
+        window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1"
+            ? "http://127.0.0.1:8001"
+            : "https://medical-voice-agent.onrender.com";
+
     const API_URL =
-        "https://medical-voice-agent.onrender.com/api/chat/voice";
+        `${API_BASE_URL}/api/chat/voice`;
 
 
     // ============================================
@@ -306,7 +310,63 @@
 
     let currentAudio = null;
 
-    const patientId = "3";
+    const PATIENT_ID_KEY =
+        "medireach_patient_id";
+
+    const SESSION_ID_KEY =
+        "medireach_session_id";
+
+    const DEFAULT_PATIENT_ID =
+        "3";
+
+    function getOrCreateStoredId(
+        key,
+        prefix,
+        defaultValue = null
+    ) {
+
+        let value =
+            localStorage.getItem(key);
+
+        if (!value) {
+
+            value =
+                defaultValue ||
+                `${prefix}-${crypto.randomUUID()}`;
+
+            localStorage.setItem(
+                key,
+                value
+            );
+        }
+
+        return value;
+    }
+
+
+    // Stable patient identifier. The default keeps existing Supabase rows
+    // saved by the earlier hardcoded patient ID available.
+    const patientId =
+        getOrCreateStoredId(
+            PATIENT_ID_KEY,
+            "patient",
+            DEFAULT_PATIENT_ID
+        );
+
+    // ============================================
+    // SESSION MEMORY
+    // ============================================
+    // Keep the session stable across refreshes so the backend can continue
+    // the same conversation. The backend also retrieves previous sessions
+    // for the same patient.
+
+    const sessionId =
+        getOrCreateStoredId(
+            SESSION_ID_KEY,
+            "session"
+        );
+
+    console.log("🧠 Session ID:", sessionId);
 
 
     // ============================================
@@ -550,12 +610,23 @@
                 new FormData();
 
 
+            // Patient ID
             formData.append(
                 "patient_id",
                 patientId
             );
 
 
+            // Session ID
+            // This is what allows the backend
+            // to remember the conversation.
+            formData.append(
+                "session_id",
+                sessionId
+            );
+
+
+            // Audio
             formData.append(
                 "file",
                 audioBlob,
@@ -749,6 +820,7 @@
                                 audioURL
                             );
 
+
                             currentAudio = null;
 
 
@@ -780,6 +852,7 @@
                             URL.revokeObjectURL(
                                 audioURL
                             );
+
 
                             currentAudio = null;
 
@@ -864,3 +937,4 @@
 </body>
 
 </html>
+

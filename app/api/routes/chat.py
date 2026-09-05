@@ -1,9 +1,9 @@
 from fastapi import (
     APIRouter,
-    HTTPException,
-    UploadFile,
     File,
     Form,
+    HTTPException,
+    UploadFile,
 )
 
 from app.models.chat import ChatRequest
@@ -23,44 +23,48 @@ async def chat(request: ChatRequest):
     try:
         response = await generate_response(
             patient_id=request.patient_id,
+            session_id=request.session_id,
             message=request.message,
         )
 
         return {
-            "response": response
+            "response": response,
         }
 
     except Exception as e:
-        print("❌ Chat error:", e)
+        print("Chat error:", e)
+
         raise HTTPException(
             status_code=500,
-            detail=str(e)
+            detail=str(e),
         )
 
 
 @router.post("/voice")
 async def voice_chat(
     patient_id: str = Form(...),
+    session_id: str = Form(...),
     file: UploadFile = File(...),
 ):
     try:
-        # 1. Speech → Text
+        # 1. Speech to text
         transcript = await transcribe_audio(file)
 
-        print("🎤 Transcript:", transcript)
+        print("Transcript:", transcript)
 
-        # 2. Text → AI Response
+        # 2. Text to AI response
         response = await generate_response(
             patient_id=patient_id,
+            session_id=session_id,
             message=transcript,
         )
 
-        print("🤖 AI Response:", response)
+        print("AI Response:", response)
 
-        # 3. AI Response → Speech
+        # 3. AI response to speech
         audio_base64 = await text_to_speech(response)
 
-        print("🔊 TTS generated successfully")
+        print("TTS generated successfully")
 
         return {
             "transcript": transcript,
@@ -70,9 +74,9 @@ async def voice_chat(
         }
 
     except Exception as e:
-        print("❌ Voice error:", e)
+        print("Voice error:", e)
 
         raise HTTPException(
             status_code=500,
-            detail=str(e)
+            detail=str(e),
         )
