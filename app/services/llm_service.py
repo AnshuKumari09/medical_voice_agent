@@ -12,7 +12,7 @@ client = AsyncGroq(
     api_key=GROQ_API_KEY
 )
 
-MODEL = "openai/gpt-oss-120b"
+MODEL="qwen/qwen3-32b"
 
 
 def is_medical_question(message: str) -> bool:
