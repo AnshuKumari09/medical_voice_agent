@@ -12,7 +12,7 @@ client = AsyncGroq(
     api_key=GROQ_API_KEY
 )
 
-MODEL="qwen/qwen3-32b"
+MODEL="whisper-large-v3-turbo"
 
 
 def is_medical_question(message: str) -> bool:
